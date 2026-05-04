@@ -160,18 +160,6 @@ The GitHub Actions workflow (`.github/workflows/retrain.yml`) triggers **every S
 
 ---
 
-## 📝 ATS-Optimized Resume Points
-
-- Built an **end-to-end customer churn prediction system** using Python, SQL, and machine learning models (XGBoost, Random Forest), achieving **87%+ ROC-AUC**
-- Performed **advanced feature engineering** (RFM scoring, behavioural metrics, interaction terms — 35+ features) improving model performance by **12%** over baseline
-- Developed **SHAP-based model explainability** to identify top churn drivers (contract type, monthly charges, support tickets) and provide actionable business recommendations
-- Deployed a **real-time prediction API** using FastAPI with batch inference, A/B testing tracking, and automated background retraining
-- Built an **interactive Streamlit web app** with churn gauge, SHAP waterfall charts, cohort analytics dashboard, and CSV batch prediction
-- Implemented **automated retraining pipeline** via GitHub Actions CI/CD, triggering weekly model refresh with test gates
-- **Containerised** the full system with Docker and Docker Compose for cloud-ready deployment (AWS ECS / GCP Cloud Run compatible)
-
----
-
 ## 📁 Project Structure
 
 ```
