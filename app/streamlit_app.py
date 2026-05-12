@@ -1,8 +1,3 @@
-"""
-streamlit_app.py — Main Streamlit Web Application
-Churn Prediction UI with SHAP explanations and analytics dashboard.
-"""
-
 import pickle
 import sys
 from pathlib import Path
@@ -15,7 +10,6 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="ChurnGuard AI | Customer Churn Prediction",
     page_icon="🛡️",
@@ -23,7 +17,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── Custom CSS ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
@@ -107,7 +100,6 @@ def get_risk_color(prob):
     return "risk-low", "🟢 LOW RISK"
 
 
-# ── Sidebar Navigation ─────────────────────────────────────────────────────────
 st.sidebar.markdown("## 🛡️ ChurnGuard AI")
 st.sidebar.markdown("---")
 page = st.sidebar.radio(
@@ -130,9 +122,6 @@ df_data = load_dataset()
 models_ready = model is not None
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# PAGE 1: Predict Churn
-# ══════════════════════════════════════════════════════════════════════════════
 if page == "🎯 Predict Churn":
     st.markdown('<h1 style="text-align:center">🛡️ ChurnGuard AI — Customer Churn Predictor</h1>', unsafe_allow_html=True)
     st.markdown('<p style="text-align:center;opacity:0.7">Enter customer details to predict churn probability with AI explainability</p>', unsafe_allow_html=True)
