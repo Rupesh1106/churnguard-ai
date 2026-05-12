@@ -20,16 +20,13 @@ def generate_churn_dataset(n_customers: int = 10000) -> pd.DataFrame:
     - Electronic check payment → higher churn
     - Fewer support calls + low tenure → higher churn
     """
-    # ── Customer identifiers ───────────────────────────────────────────────
     customer_ids = [f"CUST-{str(i).zfill(6)}" for i in range(1, n_customers + 1)]
 
-    # ── Demographics ───────────────────────────────────────────────────────
     gender           = np.random.choice(["Male", "Female"], n_customers)
     senior_citizen   = np.random.binomial(1, 0.16, n_customers)
     partner          = np.random.choice(["Yes", "No"], n_customers)
     dependents       = np.random.choice(["Yes", "No"], n_customers, p=[0.30, 0.70])
 
-    # ── Contract & services ────────────────────────────────────────────────
     contract         = np.random.choice(
         ["Month-to-month", "One year", "Two year"],
         n_customers, p=[0.55, 0.24, 0.21]
@@ -58,12 +55,10 @@ def generate_churn_dataset(n_customers: int = 10000) -> pd.DataFrame:
         n_customers, p=[0.34, 0.23, 0.22, 0.21]
     )
 
-    # ── Behavioural / Usage ────────────────────────────────────────────────
     tenure_months    = np.random.exponential(scale=30, size=n_customers).clip(1, 72).astype(int)
     monthly_charges  = np.random.normal(65, 30, n_customers).clip(18, 120).round(2)
     total_charges    = (tenure_months * monthly_charges + np.random.normal(0, 50, n_customers)).clip(18).round(2)
 
-    # Usage metrics (calls per month, data GB, support tickets)
     calls_per_month  = np.random.poisson(lam=4, size=n_customers)
     data_usage_gb    = np.where(
         internet_service == "No", 0,
@@ -73,14 +68,11 @@ def generate_churn_dataset(n_customers: int = 10000) -> pd.DataFrame:
     late_payments    = np.random.binomial(3, 0.15, n_customers)
     avg_call_duration = np.random.normal(8, 4, n_customers).clip(1, 30).round(2)  # minutes
 
-    # ── Churn label (realistic business logic) ─────────────────────────────
     churn_prob = np.zeros(n_customers)
 
-    # Contract effect
     churn_prob += np.where(contract == "Month-to-month", 0.30, 0.0)
     churn_prob += np.where(contract == "One year",        0.08, 0.0)
 
-    # Charge effect — high charges push churn up
     churn_prob += (monthly_charges - 65) / 200
 
     # Tenure effect — new customers churn more
@@ -105,7 +97,6 @@ def generate_churn_dataset(n_customers: int = 10000) -> pd.DataFrame:
     churn_prob = np.clip(churn_prob + np.random.normal(0, 0.05, n_customers), 0.02, 0.95)
     churn      = np.random.binomial(1, churn_prob, n_customers)
 
-    # ── Build DataFrame ────────────────────────────────────────────────────
     df = pd.DataFrame({
         "customer_id":        customer_ids,
         "gender":             gender,
