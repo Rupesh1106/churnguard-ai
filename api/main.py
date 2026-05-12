@@ -1,9 +1,3 @@
-"""
-main.py — FastAPI Real-Time Prediction API
-Serves churn probability + SHAP explanations via REST endpoints.
-Includes A/B testing and batch prediction capabilities.
-"""
-
 import pickle
 import random
 import time
@@ -24,7 +18,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.feature_engineering import run_full_pipeline, FEATURE_COLUMNS
 from src.shap_explain import load_shap_explainer, compute_shap_values, get_top_churn_reasons
 
-# ── App setup ──────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="Churn Prediction API",
     description="Real-time customer churn prediction with SHAP explainability",
@@ -42,7 +35,6 @@ app.add_middleware(
 
 MODELS_DIR = Path("models")
 
-# ── Model cache ────────────────────────────────────────────────────────────────
 _model_cache       = {}
 _explainer_cache   = {}
 _feature_columns   = []
@@ -81,7 +73,6 @@ async def startup_event():
     logger.info("🚀 Churn Prediction API started")
 
 
-# ── Schemas ────────────────────────────────────────────────────────────────────
 class CustomerInput(BaseModel):
     gender:             str   = Field(default="Male",            description="Male or Female")
     senior_citizen:     int   = Field(default=0,   ge=0, le=1)
@@ -115,7 +106,6 @@ class PredictionResponse(BaseModel):
     response_time_ms:    float
 
 
-# ── Helper ─────────────────────────────────────────────────────────────────────
 def customer_to_df(customer: CustomerInput) -> pd.DataFrame:
     return pd.DataFrame([customer.model_dump()])
 
@@ -143,7 +133,6 @@ def engineer_and_predict(customer: CustomerInput, model_name: str = "xgboost"):
     return X, prob, pred
 
 
-# ── Endpoints ──────────────────────────────────────────────────────────────────
 @app.get("/", tags=["Health"])
 async def root():
     return {
