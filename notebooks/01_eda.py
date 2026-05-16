@@ -1,4 +1,3 @@
-# ── EDA Notebook (Python script version — run with: jupyter nbconvert or execute directly)
 """
 01_eda.py — Exploratory Data Analysis Script
 Run: python notebooks/01_eda.py
