@@ -1,5 +1,5 @@
 """
-01_eda.py — Exploratory Data Analysis Script
+01_eda.py — exploratory Data Analysis Script
 Run: python notebooks/01_eda.py
 """
 import sys
