@@ -56,7 +56,7 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 """, unsafe_allow_html=True)
 
 MODELS_DIR = Path("models")
-
+#model
 
 @st.cache_resource
 def load_model_cached(name: str):
