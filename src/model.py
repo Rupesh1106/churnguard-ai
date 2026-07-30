@@ -12,7 +12,6 @@ import mlflow.sklearn
 import mlflow.xgboost
 import numpy as np
 import pandas as pd
-from imblearn.over_sampling import SMOTE
 from loguru import logger
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
@@ -68,7 +67,6 @@ def get_xgboost() -> XGBClassifier:
         subsample=0.8,
         colsample_bytree=0.8,
         scale_pos_weight=3,   # handles class imbalance
-        use_label_encoder=False,
         eval_metric="auc",
         random_state=42,
         n_jobs=-1,

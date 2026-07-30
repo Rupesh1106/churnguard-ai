@@ -1,6 +1,7 @@
 import pickle
-import random
 import time
+from collections import deque
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 import sys
@@ -18,27 +19,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.feature_engineering import run_full_pipeline, FEATURE_COLUMNS
 from src.shap_explain import load_shap_explainer, compute_shap_values, get_top_churn_reasons
 
-app = FastAPI(
-    title="Churn Prediction API",
-    description="Real-time customer churn prediction with SHAP explainability",
-    version="2.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 MODELS_DIR = Path("models")
 
 _model_cache       = {}
 _explainer_cache   = {}
 _feature_columns   = []
-_request_log       = []           # In-memory request log for A/B tracking
+_request_log       = deque(maxlen=10000)  # Bounded log to prevent memory leak
 
 
 def load_models():
@@ -67,10 +53,30 @@ def load_models():
         logger.warning(f"Model loading skipped (run pipeline first): {e}")
 
 
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Modern lifespan handler replacing deprecated @app.on_event."""
     load_models()
     logger.info("🚀 Churn Prediction API started")
+    yield
+    logger.info("👋 Churn Prediction API shutting down")
+
+
+app = FastAPI(
+    title="Churn Prediction API",
+    description="Real-time customer churn prediction with SHAP explainability",
+    version="2.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class CustomerInput(BaseModel):
@@ -122,6 +128,9 @@ def engineer_and_predict(customer: CustomerInput, model_name: str = "xgboost"):
     df_eng = run_full_pipeline(df_raw, drop_id=False)
 
     available = [f for f in _feature_columns if f in df_eng.columns]
+    missing = set(_feature_columns) - set(df_eng.columns)
+    if missing:
+        logger.warning(f"Missing features during prediction: {missing}")
     X = df_eng[available]
 
     model = _model_cache.get(model_name)
@@ -178,7 +187,7 @@ async def predict(customer: CustomerInput, model: str = "xgboost"):
         response_time_ms=elapsed,
     )
 
-    # Log for A/B tracking
+    # Log for A/B tracking (bounded deque prevents memory leak)
     _request_log.append({"model": model, "prob": prob, "pred": pred})
 
     return response
@@ -212,7 +221,7 @@ async def ab_test_summary():
         return {"message": "No requests logged yet."}
 
     import pandas as pd
-    df = pd.DataFrame(_request_log)
+    df = pd.DataFrame(list(_request_log))
     summary = df.groupby("model").agg(
         requests=("prob", "count"),
         avg_churn_prob=("prob", "mean"),
