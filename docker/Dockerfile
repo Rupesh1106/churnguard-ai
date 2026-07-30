@@ -14,10 +14,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy project files
 COPY . .
 
-# Run pipeline to train models on container start
-RUN python src/pipeline.py
-
 EXPOSE 8501 8000
+
+# Train models at container start (not during build) via entrypoint
+ENTRYPOINT ["sh", "-c", "python src/pipeline.py && exec \"$@\"", "--"]
 
 # Default: run Streamlit app
 CMD ["streamlit", "run", "app/streamlit_app.py", \
