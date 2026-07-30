@@ -21,3 +21,4 @@ httpx==0.27.0
 schedule==1.2.1
 joblib==1.4.2
 sqlalchemy==2.0.29
+loguru==0.7.2
