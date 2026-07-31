@@ -10,21 +10,19 @@ from pathlib import Path
 import mlflow
 import mlflow.sklearn
 import mlflow.xgboost
-import numpy as np
 import pandas as pd
 from loguru import logger
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     classification_report,
-    confusion_matrix,
     precision_score,
     recall_score,
     roc_auc_score,
     f1_score,
     average_precision_score,
 )
-from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
+from sklearn.model_selection import StratifiedKFold, cross_val_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from xgboost import XGBClassifier
@@ -66,7 +64,7 @@ def get_xgboost() -> XGBClassifier:
         learning_rate=0.05,
         subsample=0.8,
         colsample_bytree=0.8,
-        scale_pos_weight=3,   # handles class imbalance
+        scale_pos_weight=3,
         eval_metric="auc",
         random_state=42,
         n_jobs=-1,
@@ -76,17 +74,17 @@ def get_xgboost() -> XGBClassifier:
 # ── Evaluation helper ──────────────────────────────────────────────────────────
 def evaluate_model(model, X_test: pd.DataFrame, y_test: pd.Series, name: str) -> dict:
     """Compute and print all relevant classification metrics."""
-    y_pred      = model.predict(X_test)
-    y_prob      = model.predict_proba(X_test)[:, 1]
+    y_pred = model.predict(X_test)
+    y_prob = model.predict_proba(X_test)[:, 1]
 
     metrics = {
-        "model":           name,
-        "roc_auc":         round(roc_auc_score(y_test, y_prob), 4),
-        "pr_auc":          round(average_precision_score(y_test, y_prob), 4),
-        "precision":       round(precision_score(y_test, y_pred), 4),
-        "recall":          round(recall_score(y_test, y_pred), 4),
-        "f1":              round(f1_score(y_test, y_pred), 4),
-        "accuracy":        round((y_pred == y_test).mean(), 4),
+        "model":     name,
+        "roc_auc":   round(roc_auc_score(y_test, y_prob), 4),
+        "pr_auc":    round(average_precision_score(y_test, y_prob), 4),
+        "precision": round(precision_score(y_test, y_pred), 4),
+        "recall":    round(recall_score(y_test, y_pred), 4),
+        "f1":        round(f1_score(y_test, y_pred), 4),
+        "accuracy":  round((y_pred == y_test).mean(), 4),
     }
 
     print(f"\n{'='*50}")
@@ -103,7 +101,6 @@ def evaluate_model(model, X_test: pd.DataFrame, y_test: pd.Series, name: str) ->
 # ── Training orchestrator ──────────────────────────────────────────────────────
 def train_all_models(X_train, X_test, y_train, y_test, feature_names: list) -> dict:
     """Train all 3 models, log to MLflow, save to disk, return metrics dict."""
-
     results = {}
 
     model_configs = [
@@ -119,11 +116,9 @@ def train_all_models(X_train, X_test, y_train, y_test, feature_names: list) -> d
             metrics = evaluate_model(model, X_test, y_test, name)
             results[name] = metrics
 
-            # Log params & metrics to MLflow
             mlflow.log_metrics({k: v for k, v in metrics.items() if k != "model"})
             mlflow.log_param("model_type", name)
 
-            # Save model artifact
             safe_name = name.lower().replace(" ", "_")
             model_path = MODELS_DIR / f"{safe_name}.pkl"
             with open(model_path, "wb") as f:
@@ -132,7 +127,6 @@ def train_all_models(X_train, X_test, y_train, y_test, feature_names: list) -> d
 
             logger.success(f"Done: {name} | ROC-AUC: {metrics['roc_auc']}")
 
-    # Save metrics summary
     metrics_path = MODELS_DIR / "metrics_summary.json"
     with open(metrics_path, "w") as f:
         json.dump(results, f, indent=2)
@@ -151,7 +145,7 @@ def load_model(model_name: str = "xgboost"):
 def cross_validate_model(model, X, y, cv: int = 5) -> dict:
     """Run stratified k-fold cross validation."""
     cv_strategy = StratifiedKFold(n_splits=cv, shuffle=True, random_state=42)
-    auc_scores  = cross_val_score(model, X, y, cv=cv_strategy, scoring="roc_auc", n_jobs=-1)
+    auc_scores = cross_val_score(model, X, y, cv=cv_strategy, scoring="roc_auc", n_jobs=-1)
     return {
         "mean_auc":  round(auc_scores.mean(), 4),
         "std_auc":   round(auc_scores.std(), 4),

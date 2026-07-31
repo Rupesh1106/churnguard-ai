@@ -1,3 +1,4 @@
+import json
 import pickle
 import sys
 from pathlib import Path
@@ -9,6 +10,12 @@ import plotly.graph_objects as go
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from src.feature_engineering import run_full_pipeline
+from src.shap_explain import (
+    load_shap_explainer, compute_shap_values,
+    get_top_churn_reasons, format_churn_reasons_text,
+)
 
 st.set_page_config(
     page_title="ChurnGuard AI | Customer Churn Prediction",
@@ -56,7 +63,7 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 """, unsafe_allow_html=True)
 
 MODELS_DIR = Path("models")
-#model
+
 
 @st.cache_resource
 def load_model_cached(name: str):
@@ -131,7 +138,6 @@ if page == "🎯 Predict Churn":
         st.error("⚠️ Models not found. Run `python src/pipeline.py` first to train models.")
         st.stop()
 
-    # ── Input form ─────────────────────────────────────────────────────────
     with st.form("prediction_form"):
         st.markdown('<div class="section-header">👤 Customer Profile</div>', unsafe_allow_html=True)
 
@@ -169,8 +175,6 @@ if page == "🎯 Predict Churn":
         submitted = st.form_submit_button("🔮 Predict Churn Probability")
 
     if submitted:
-        from src.feature_engineering import run_full_pipeline
-
         raw_input = {
             "gender": gender, "senior_citizen": senior_citizen,
             "partner": partner, "dependents": dependents,
@@ -189,7 +193,6 @@ if page == "🎯 Predict Churn":
         available  = [f for f in feature_cols if f in df_eng.columns]
         X          = df_eng[available]
         prob       = float(model.predict_proba(X)[0, 1])
-        pred       = int(prob >= 0.5)
         css_class, risk_label = get_risk_color(prob)
 
         st.markdown("---")
@@ -205,7 +208,6 @@ if page == "🎯 Predict Churn":
             </div>
             """, unsafe_allow_html=True)
 
-        # Gauge chart
         fig = go.Figure(go.Indicator(
             mode="gauge+number",
             value=prob * 100,
@@ -225,20 +227,13 @@ if page == "🎯 Predict Churn":
         fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", font_color="white", height=300)
         st.plotly_chart(fig, use_container_width=True)
 
-        # SHAP Reasons from pre-computed global values (fast)
+        # SHAP Reasons
         if shap_data is not None:
             try:
-                from src.shap_explain import get_top_churn_reasons, format_churn_reasons_text
-                import numpy as np
-
-                sv_array = shap_data["values"]  # shape (n_sample, n_features)
+                sv_array = shap_data["values"]
                 feat_names = shap_data["feature_names"]
 
-                # Compute per-input SHAP inline using the loaded XGBoost model
-                from src.shap_explain import load_shap_explainer, compute_shap_values
-                import pandas as pd
                 xgb_model = load_model_cached("xgboost")
-                # Build explainer on-the-fly (fast for single row)
                 bg = pd.DataFrame(sv_array[:50], columns=feat_names)
                 live_explainer = load_shap_explainer(xgb_model, bg[available], "xgboost")
                 live_sv = compute_shap_values(live_explainer, X)
@@ -260,7 +255,6 @@ if page == "🎯 Predict Churn":
             except Exception as e:
                 st.warning(f"SHAP explanation unavailable: {e}")
 
-        # Retention recommendations
         st.markdown("---")
         st.markdown("### 💡 Retention Recommendations")
         recs = []
@@ -274,9 +268,6 @@ if page == "🎯 Predict Churn":
             st.success(r)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# PAGE 2: Analytics Dashboard
-# ══════════════════════════════════════════════════════════════════════════════
 elif page == "📊 Analytics Dashboard":
     st.markdown("## 📊 Churn Analytics Dashboard")
 
@@ -286,11 +277,10 @@ elif page == "📊 Analytics Dashboard":
 
     raw = pd.read_csv("data/raw/telecom_churn.csv") if Path("data/raw/telecom_churn.csv").exists() else df_data
 
-    # KPI Row
     total        = len(raw)
     churned      = raw["churn"].sum()
     churn_rate   = churned / total
-    revenue_risk = (raw[raw["churn"] == 1]["monthly_charges"].sum())
+    revenue_risk = raw[raw["churn"] == 1]["monthly_charges"].sum()
 
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("👥 Total Customers", f"{total:,}")
@@ -303,7 +293,6 @@ elif page == "📊 Analytics Dashboard":
     col1, col2 = st.columns(2)
 
     with col1:
-        # Churn by contract
         contract_churn = raw.groupby("contract")["churn"].mean().reset_index()
         fig = px.bar(contract_churn, x="contract", y="churn",
                      title="Churn Rate by Contract Type",
@@ -312,7 +301,6 @@ elif page == "📊 Analytics Dashboard":
         st.plotly_chart(fig, use_container_width=True)
 
     with col2:
-        # Churn by internet service
         inet_churn = raw.groupby("internet_service")["churn"].mean().reset_index()
         fig = px.pie(inet_churn, values="churn", names="internet_service",
                      title="Churn Distribution by Internet Service",
@@ -323,7 +311,6 @@ elif page == "📊 Analytics Dashboard":
     col3, col4 = st.columns(2)
 
     with col3:
-        # Monthly charges distribution by churn
         fig = px.box(raw, x="churn", y="monthly_charges",
                      title="Monthly Charges vs Churn",
                      color="churn", color_discrete_map={0: "#11998e", 1: "#ff416c"})
@@ -331,7 +318,6 @@ elif page == "📊 Analytics Dashboard":
         st.plotly_chart(fig, use_container_width=True)
 
     with col4:
-        # Tenure distribution
         fig = px.histogram(raw, x="tenure_months", color="churn",
                            title="Tenure Distribution by Churn",
                            barmode="overlay", nbins=30,
@@ -339,7 +325,6 @@ elif page == "📊 Analytics Dashboard":
         fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", font_color="white")
         st.plotly_chart(fig, use_container_width=True)
 
-    # Cohort analysis
     st.markdown("### 🔬 Cohort Churn Analysis")
     raw["tenure_cohort"] = pd.cut(raw["tenure_months"],
                                    bins=[0,6,12,24,36,72],
@@ -353,13 +338,9 @@ elif page == "📊 Analytics Dashboard":
     st.plotly_chart(fig, use_container_width=True)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# PAGE 3: Model Insights
-# ══════════════════════════════════════════════════════════════════════════════
 elif page == "🧠 Model Insights":
     st.markdown("## 🧠 Model Performance & SHAP Insights")
 
-    import json
     metrics_path = Path("models/metrics_summary.json")
     if metrics_path.exists():
         with open(metrics_path) as f:
@@ -379,23 +360,19 @@ elif page == "🧠 Model Insights":
     else:
         st.warning("Run the pipeline to generate model metrics.")
 
-    # SHAP plots
     shap_bar = Path("reports/shap_bar.png")
     shap_summary = Path("reports/shap_summary.png")
     if shap_bar.exists():
         st.markdown("### 🎯 Global SHAP Feature Importance")
-        st.image(str(shap_bar), use_column_width=True)
+        st.image(str(shap_bar), use_container_width=True)
     if shap_summary.exists():
         st.markdown("### 🌊 SHAP Beeswarm Summary")
-        st.image(str(shap_summary), use_column_width=True)
+        st.image(str(shap_summary), use_container_width=True)
 
     if not shap_bar.exists():
         st.info("SHAP plots will appear here after running the pipeline.")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# PAGE 4: Batch Prediction
-# ══════════════════════════════════════════════════════════════════════════════
 elif page == "📋 Batch Prediction":
     st.markdown("## 📋 Batch Customer Churn Prediction")
     st.markdown("Upload a CSV file to predict churn for multiple customers at once.")
@@ -411,7 +388,6 @@ elif page == "📋 Batch Prediction":
         st.dataframe(df_up.head(), use_container_width=True)
 
         if st.button("🔮 Run Batch Prediction"):
-            from src.feature_engineering import run_full_pipeline
             with st.spinner("Predicting..."):
                 df_eng  = run_full_pipeline(df_up.copy(), drop_id=False)
                 avail   = [f for f in feature_cols if f in df_eng.columns]

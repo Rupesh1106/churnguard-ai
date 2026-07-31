@@ -1,3 +1,4 @@
+import json
 import pickle
 import time
 from collections import deque
@@ -6,25 +7,23 @@ from pathlib import Path
 from typing import Optional
 import sys
 
-import numpy as np
 import pandas as pd
 import uvicorn
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from loguru import logger
 from pydantic import BaseModel, Field
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.feature_engineering import run_full_pipeline, FEATURE_COLUMNS
-from src.shap_explain import load_shap_explainer, compute_shap_values, get_top_churn_reasons
+from src.shap_explain import compute_shap_values, get_top_churn_reasons
 
 MODELS_DIR = Path("models")
 
 _model_cache       = {}
 _explainer_cache   = {}
 _feature_columns   = []
-_request_log       = deque(maxlen=10000)  # Bounded log to prevent memory leak
+_request_log       = deque(maxlen=10000)
 
 
 def load_models():
@@ -42,7 +41,6 @@ def load_models():
                     _model_cache[name] = pickle.load(f)
                 logger.info(f"Loaded model: {name}")
 
-        # Load SHAP explainer for XGBoost
         exp_path = MODELS_DIR / "shap_explainer.pkl"
         if exp_path.exists():
             with open(exp_path, "rb") as f:
@@ -165,13 +163,12 @@ async def predict(customer: CustomerInput, model: str = "xgboost"):
     t0 = time.time()
     X, prob, pred = engineer_and_predict(customer, model)
 
-    # SHAP reasons
     reasons = []
     if model == "xgboost" and "xgboost" in _explainer_cache:
         try:
-            explainer  = _explainer_cache["xgboost"]
-            shap_vals   = compute_shap_values(explainer, X)
-            reasons     = get_top_churn_reasons(shap_vals, X, idx=0, top_n=5)
+            explainer = _explainer_cache["xgboost"]
+            shap_vals = compute_shap_values(explainer, X)
+            reasons   = get_top_churn_reasons(shap_vals, X, idx=0, top_n=5)
         except Exception as e:
             logger.warning(f"SHAP computation failed: {e}")
 
@@ -187,9 +184,7 @@ async def predict(customer: CustomerInput, model: str = "xgboost"):
         response_time_ms=elapsed,
     )
 
-    # Log for A/B tracking (bounded deque prevents memory leak)
     _request_log.append({"model": model, "prob": prob, "pred": pred})
-
     return response
 
 
@@ -220,7 +215,6 @@ async def ab_test_summary():
     if not _request_log:
         return {"message": "No requests logged yet."}
 
-    import pandas as pd
     df = pd.DataFrame(list(_request_log))
     summary = df.groupby("model").agg(
         requests=("prob", "count"),
@@ -237,7 +231,6 @@ async def get_metrics():
     metrics_path = MODELS_DIR / "metrics_summary.json"
     if not metrics_path.exists():
         raise HTTPException(status_code=404, detail="Run pipeline.py first to generate metrics.")
-    import json
     with open(metrics_path) as f:
         return json.load(f)
 

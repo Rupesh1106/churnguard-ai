@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
+import numpy as np
 import pandas as pd
 from loguru import logger
 from sklearn.model_selection import train_test_split
@@ -37,7 +38,7 @@ def run_pipeline(regenerate_data: bool = False, n_customers: int = 10_000):
     Full end-to-end pipeline:
     1. Load or generate data
     2. Feature engineering
-    3. Train/test split + SMOTE
+    3. Train/test split
     4. Train all 3 models
     5. SHAP explainability
     6. Save artifacts
@@ -77,11 +78,9 @@ def run_pipeline(regenerate_data: bool = False, n_customers: int = 10_000):
     logger.info(f"Train: {X_train.shape}  |  Test: {X_test.shape}")
     logger.info(f"Churn in train: {y_train.mean():.1%}  |  Test: {y_test.mean():.1%}")
 
-    # Save test set for evaluation scripts
     X_test.to_csv(DATA_DIR / "processed" / "X_test.csv", index=False)
     y_test.to_csv(DATA_DIR / "processed" / "y_test.csv", index=False)
 
-    # Save feature list
     with open(MODELS_DIR / "feature_columns.pkl", "wb") as f:
         pickle.dump(available_features, f)
 
@@ -93,15 +92,12 @@ def run_pipeline(regenerate_data: bool = False, n_customers: int = 10_000):
 
     # ── Step 5: SHAP Explainability ───────────────────────────────────────
     logger.info("Computing SHAP values...")
-    xgb_model  = load_model("xgboost")
-    explainer   = load_shap_explainer(xgb_model, X_train, "xgboost")
+    xgb_model = load_model("xgboost")
+    explainer = load_shap_explainer(xgb_model, X_train, "xgboost")
 
-    # Use a sample for speed
-    X_sample  = X_test.sample(min(300, len(X_test)), random_state=42)
-    shap_vals  = compute_shap_values(explainer, X_sample)
+    X_sample = X_test.sample(min(300, len(X_test)), random_state=42)
+    shap_vals = compute_shap_values(explainer, X_sample)
 
-    # Save SHAP values array + feature names (explainer has lambda, can't pickle)
-    import numpy as np
     sv_array = shap_vals.values if hasattr(shap_vals, "values") else np.array(shap_vals)
     with open(MODELS_DIR / "shap_values.pkl", "wb") as f:
         pickle.dump({"values": sv_array, "feature_names": list(X_sample.columns)}, f)
